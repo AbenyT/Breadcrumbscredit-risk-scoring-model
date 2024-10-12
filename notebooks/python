@@ -1,0 +1,185 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+from imblearn.over_sampling import SMOTE
+
+# Add the parent directory to the system path 
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join('..')))
+
+from scripts.credit_scoring_model import *
+from scripts.credit_scoring_model import *
+
+# Load the data
+data = pd.read_csv('../data/woe_transformed_data.csv')
+
+data.head()
+
+data.info()
+
+columns_to_drop=['TransactionId','ProductId','BatchId','AccountId', '','CustomerId','SubscriptionId','TransactionStartTime','CurrencyCode',
+    'ProviderId','CountryCode', 'RFMS_Score']
+data=data.drop(columns_to_drop, axis=1, errors='ignore')
+
+data.info()
+
+# Encode Categorical Features
+categorical_columns = ['ProductCategory','ChannelId']
+le = LabelEncoder()
+for col in categorical_columns:
+    data[col] = le.fit_transform(data[col])
+
+
+# Separate features and target variable
+X = data.drop('label', axis=1)  
+y = data['label']  # label
+
+# features
+print(X.columns)
+
+X.head()
+
+# Analyze feature correlations
+analyze_feature_correlations(X)
+
+Let us now split our data into the following sets: training (80%) and test (20%) using SMOTE and stratification
+
+X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.2, random_state=42)
+
+# Initialize SMOTE
+smote = SMOTE(random_state=42)
+
+# Apply SMOTE to the training data
+X_train, y_train = smote.fit_resample(X_train, y_train)
+
+# size of the train and test splits
+print(f"Training set size: {X_train.shape[0]} samples")
+print(f"Testing set size: {X_test.shape[0]} samples")
+
+### Modelling 
+ Four models are chosen for the classification task:
+    -   Logistic Regression, Random Forest, Gradient Boosting Machine (GBM), Decision Trees
+
+- Model Training: 
+    - Each of these models is trained on the training data, with the aim of identifying high-risk customers based on their transactional history and other features.
+- Hyperparameter Tuning: 
+    - The hyperparameters of each model are fine-tuned using grid search techniques to enhance performance.
+
+-  Model Evaluation
+    -   Accuracy: Used to measure the overall correctness of predictions for each model.
+    - Precision: Evaluates how many of the predicted defaults were actually correct.
+    - Recall (Sensitivity): Measures how well the model identifies actual defaults.
+    - F1 Score: A balance between precision and recall, important for handling imbalanced datasets.
+    - ROC-AUC: A key metric that evaluates the model’s ability to distinguish between high and low-risk customers. Higher AUC values indicate better performance in classification tasks.
+
+# Create models
+logistic_model, dt_model, rf_model, gb_model = create_models()
+
+### Logistic Regression Model 
+
+# Train Logistic Regression model
+
+logistic_model = train_model(logistic_model, X_train, y_train)
+
+# evaluate Logistic Regression models
+print("Logistic Regression Performance:")
+logistic_metrics = evaluate_model(logistic_model, X_test, y_test)
+for metric, value in logistic_metrics.items():
+    print(f"{metric.capitalize()}: {value:.4f}")
+
+plot_roc_curve(logistic_model, X_test, y_test)
+plot_confusion_matrix(logistic_model, X_test, y_test)
+plot_learning_curve(logistic_model, X, y)
+
+### Decision Tree Model
+
+# Train Decision Tree model
+dt_param_grid = {
+    'max_depth': [3, 5, 7, 10],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4]
+}
+best_dt_model = tune_model(dt_model, X_train, y_train, dt_param_grid)
+
+# evaluate Decision Tree model
+print("\nDecision Tree Performance:")
+dt_metrics = evaluate_model(best_dt_model, X_test, y_test)
+for metric, value in dt_metrics.items():
+    print(f"{metric.capitalize()}: {value:.4f}")
+
+plot_roc_curve(best_dt_model, X_test, y_test)
+plot_confusion_matrix(best_dt_model, X_test, y_test)
+plot_learning_curve(best_dt_model, X, y)
+plot_feature_importance(best_dt_model, X)
+
+### Random Forest Model
+
+# Train Random Forest model
+rf_param_grid = {
+    'n_estimators': [100, 200, 300],
+    'max_depth': [None, 10, 20, 30],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4]
+}
+best_rf_model = tune_model(rf_model, X_train, y_train, rf_param_grid)
+
+# evaluate Random Forest model
+print("\nRandom Forest Performance:")
+rf_metrics = evaluate_model(best_rf_model, X_test, y_test)
+for metric, value in rf_metrics.items():
+    print(f"{metric.capitalize()}: {value:.4f}")
+
+plot_roc_curve(best_rf_model, X_test, y_test)
+plot_confusion_matrix(best_rf_model, X_test, y_test)
+plot_learning_curve(best_rf_model, X, y)
+plot_feature_importance(best_rf_model, X)
+
+### Gradient Boosting Model
+
+# Train Gradient Boosting model
+gb_param_grid = {
+    'n_estimators': [100, 200, 300],
+    'learning_rate': [0.01, 0.1, 0.3],
+    'max_depth': [3, 5, 7]
+}
+best_gb_model = tune_model(gb_model, X_train, y_train, gb_param_grid)
+
+# evaluate Gradient Boosting model
+print("\nGradient Boosting Performance:")
+gb_metrics = evaluate_model(best_gb_model, X_test, y_test)
+for metric, value in gb_metrics.items():
+    print(f"{metric.capitalize()}: {value:.4f}")
+
+plot_roc_curve(best_gb_model, X_test, y_test)
+plot_confusion_matrix(best_gb_model, X_test, y_test)
+plot_learning_curve(best_gb_model, X, y)
+plot_feature_importance(best_gb_model, X)
+
+### Compare Models
+
+# Compare models
+print("\nModel Comparison:")
+metrics = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
+models = ['Logistic Regression', 'Decision Tree', 'Random Forest', 'Gradient Boosting']
+comparison_df = pd.DataFrame({
+    'Logistic Regression': [logistic_metrics[m] for m in metrics],
+    'Decision Tree': [dt_metrics[m] for m in metrics],
+    'Random Forest': [rf_metrics[m] for m in metrics],
+    'Gradient Boosting': [gb_metrics[m] for m in metrics]
+}, index=metrics)
+print(comparison_df)
+
+# Visualize the comparison
+comparison_df.plot(kind='bar', figsize=(12, 6))
+plt.title('Model Performance Comparison')
+plt.ylabel('Score')
+plt.xticks(rotation=45)
+plt.legend(loc='lower right')
+plt.tight_layout()
+plt.show()
+
+# Save the best performing model
+best_model = max([logistic_model, best_dt_model, best_rf_model, best_gb_model], 
+                 key=lambda m: evaluate_model(m, X_test, y_test)['roc_auc'])
+save_model(best_model, '../model/best_credit_scoring_model.pkl')
